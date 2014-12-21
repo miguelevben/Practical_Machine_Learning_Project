@@ -1,0 +1,134 @@
+---
+title: "Practical Machine Learning project"
+author: "Miguel Levy"
+date: "Saturday, December 20, 2014"
+output: html_document
+---
+
+## SUMMARY
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:<http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset). 
+
+**GOALS:**
+
+The goal is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Is possible to use any of the other variables to predict with.  Must be create a report describing how you built a model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+##MATERIALS AND METHODS - DATA SOURCES: 
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+    - Training data for this project are available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>.
+    - Test data are available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+**LOADING AND CLEANING DATASETS:** 
+
+    First of all we will load R libraries and will set  overall seed: 
+    
+    
+```{r,echo=TRUE}
+library(caret)           #library for clasification and Regression training
+library(randomForest)    #Random fores functions-for classif.and regression.
+library(rpart)           #Recursive partitioning and regression trees
+library(rpart.plot)      # Plot rpart Models 
+library(e1071)           # 
+
+
+``` 
+
+
+Next step will be downloand datasets:
+
+
+```{r,echo=FALSE}
+#variables for test and training datasets
+training.file   <- 'pml-training.csv'
+test.cases.file <- 'pml-test.csv'
+training.url    <- 'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+test.cases.url  <- 'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+
+#download and load data set
+download.file(training.url, destfile = training.file)
+download.file(test.cases.url,destfile = test.cases.file )
+
+```
+
+Now we are going to remove from datasets NAs, "" and "#DIV/0!" values and variables without time dependence values, irrelevant fields for this analysis: `user_name`, `raw_timestamp_part_1`, `raw_timestamp_part_2`, `cvtd_timestamp`, `new_window`, and  `num_window`.
+
+```{r,echo=FALSE}
+
+# Loading the training data set and remove NAs 
+set_training   <-read.csv(training.file, na.strings=c("NA","#DIV/0!", ""))
+set_test <-read.csv(test.cases.file , na.strings=c("NA", "#DIV/0!", ""))
+
+set_training <- set_training[,colSums(is.na(set_training)) == 0]
+set_test <- set_test[,colSums(is.na(set_test)) == 0]
+
+set_training   <- set_training[,-c(1:7)]
+set_test <- set_test[,-c(1:7)]
+```
+
+**CROSS-VALIDATION:**
+
+Training data set will be partitioned into 2 subsets to allow crossvalidation (25% - 75%).
+    
+```{r,echo=TRUE}
+set.seed(1500)           # random sample for training
+
+sub_set_training <- createDataPartition(y=set_training$classe, p=0.75, list=FALSE)
+sub_Training <- set_training[sub_set_training, ] 
+sub_Testing <- set_training[-sub_set_training, ]
+```
+Now we are going the tests for select a best prediction model (with best accuracy).
+
+##DISCUSSION AND RESULTS:
+
+ The "classe" is an unordered factor variable, decision tree and random forest algorithms are non linear models known for their ability of iteratively split variables intro homogeneus groups and very useful for detecting the features that are important for classification. For this reason we selected both algorithms for this report.
+ 
+** A.- MODEL 1 USING DECISION TREES:**
+
+```{r,echo=TRUE}
+
+#Using decision trees
+mod_1_DecTree <- rpart(classe ~ ., data=sub_Training, method="class")
+mod_1_prediction <- predict(mod_1_DecTree, sub_Testing, type = "class")
+rpart.plot(mod_1_DecTree, main="Decision Tree", extra=102, under=TRUE, faclen=0)
+
+# Test results on our subTesting data set:
+confusionMatrix(mod_1_prediction, sub_Testing$classe)
+```
+From Confusion Matrix we can obtain the accuracy for this model, was 0.7397 for a 95% CI : (0.7273, 0.752). Expected out-of-sample error is estimated at 0.005,a 0.5%.
+
+**B.- MODEL 2 USING RANDOM FOREST:**
+
+```{r,echo=TRUE}
+
+#Using Random forest
+mod_2_RandFor <- randomForest(classe ~. , data=sub_Training, method="class")
+mod_2_prediction <- predict(mod_2_RandFor, sub_Testing, type = "class")
+confusionMatrix(mod_2_prediction, sub_Testing$classe)
+
+```
+From Confusion Matrix we can obtain the accuracy for this model was 0.9951 for a 95% CI : (0.9927, 0.9969). Expected out-of-sample error is estimated at 0.005,a 0.5%.
+
+##CONCLUSION:
+
+The Random Forest fit is clearly more accurate than Decision Tree model (0.99 vs 0.74).   For testing the 20 test-cases we select the Random Forest method. With an accuracy  above 99% on our cross-validation data, we can expect that all of the submitted test cases to be correct.
+
+##SUBMIT
+
+We selected the Random Forest model, we used this model for 20 test cases and submit the 20 files obtained with the next code (from course instructions) 
+```{r,echo=TRUE}
+#model selected: Random Forest
+
+predictfinal <- predict(mod_2_RandFor, set_test, type="class")
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+#this code make 20 files, one for every test case
+```
+
+ 
